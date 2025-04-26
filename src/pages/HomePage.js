@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState } from "react";
 import {
   Container,
@@ -20,11 +21,9 @@ import {
   InputLabel,
   Grid2,
   Card,
-  CardContent,
-  CardHeader,
 } from "@mui/material";
 
-import { FaUser, FaHamburger, FaSearch } from "react-icons/fa"; // Added FaSearch for the new button
+import { FaUser, FaHamburger, FaSearch } from "react-icons/fa";
 import { MdPets } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { logout, getAuthToken } from "../utils/auth";
@@ -71,29 +70,56 @@ const HomePage = () => {
     status: ProductStatus.PENDING,
   });
   const [imagePreview, setImagePreview] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [profile, setProfile] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    avatar: null,
+    username: ""
+  });
 
+  // Fetch userId from token or local storage on component mount
   useEffect(() => {
-    if (activeTab === "products") fetchProducts();
-  }, [activeTab, page]);
+    const token = getAuthToken();
+    if (token) {
+      const storedUserId = localStorage.getItem("userId");
+      if (storedUserId) {
+        setUserId(storedUserId);
+      }
+    }
+  }, []);
+
+  // Fetch data when activeTab or page changes
+  useEffect(() => {
+    if (activeTab === "products" && userId) {
+      fetchProducts();
+    } else if (activeTab === "profile") {
+      fetchProfile();
+    }
+  }, [activeTab, page, userId]);
 
   const fetchProducts = async () => {
     try {
       const token = getAuthToken();
-      const response = await axios.get("http://[::1]:3000/api/v1/panel/pets", {
+      const response = await axios.get("http://[::1]:3000/api/v1/pets", {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        params: { limit: "10", page: String(page) },
+        params: {
+          limit: "10",
+          page: String(page),
+        },
       });
 
       if (response.data.success && Array.isArray(response.data.data)) {
-        // Map the response data to match the expected product structure
         const formattedProducts = response.data.data.map((pet) => ({
-          id: pet._id, // Assuming the API returns `_id` for MongoDB
+          id: pet._id,
           name: pet.name,
           species: pet.species,
           breed: pet.breed,
           age: pet.age,
           gender: pet.gender,
-          productImages: pet.productImages, // Assuming this is a URL or file path
+          productImages: pet.productImages,
           description: pet.description,
           status: pet.status,
         }));
@@ -111,6 +137,30 @@ const HomePage = () => {
         navigate("/");
       } else {
         setError("Error fetching products. Please try again later.");
+      }
+    }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const token = getAuthToken();
+      const response = await axios.get("http://[::1]:3000/api/v1/profile", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.success) {
+        setProfile(response.data.data);
+        setError("");
+      } else {
+        setError("Failed to load profile.");
+      }
+    } catch (error) {
+      if (error.response?.status === 401) {
+        setError("Unauthorized Access. Please login again.");
+        logout();
+        navigate("/");
+      } else {
+        setError("Error fetching profile. Please try again later.");
       }
     }
   };
@@ -165,7 +215,7 @@ const HomePage = () => {
       formData.append("description", newProduct.description);
       formData.append("status", newProduct.status);
 
-      const response = await axios.post("http://[::1]:3000/api/v1/panel/pets", formData, {
+      const response = await axios.post("http://[::1]:3000/api/v1/pets", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
@@ -322,17 +372,22 @@ const HomePage = () => {
                       </Typography>
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="body1" sx={{ color: "#555" }}>
-                          <strong>Username:</strong> admin
+                          <strong>Username:</strong> {profile.username}
                         </Typography>
                       </Box>
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="body1" sx={{ color: "#555" }}>
-                          <strong>Email:</strong> user@example.com
+                          <strong>Email:</strong> {profile.email}
                         </Typography>
                       </Box>
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="body1" sx={{ color: "#555" }}>
-                          <strong>Full Name:</strong> John Doe
+                          <strong>Full Name:</strong> {profile.firstName} {profile.lastName}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="body1" sx={{ color: "#555" }}>
+                          <strong>Phone Number:</strong> {profile.phoneNumber}
                         </Typography>
                       </Box>
                       <Button
@@ -362,7 +417,7 @@ const HomePage = () => {
                       </Typography>
                       <Box sx={{ mb: 2 }}>
                         <Typography variant="body1" sx={{ color: "#555" }}>
-                          <strong>User ID:</strong> 1
+                          <strong>User ID:</strong> {userId}
                         </Typography>
                       </Box>
                       <Box sx={{ mb: 2 }}>
