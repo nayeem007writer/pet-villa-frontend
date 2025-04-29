@@ -19,16 +19,15 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Grid2,
+  Grid,
   Card,
+  CardContent,
 } from "@mui/material";
-
 import { FaUser, FaHamburger, FaSearch } from "react-icons/fa";
 import { MdPets } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { logout, getAuthToken } from "../utils/auth";
 import axios from "axios";
-import ProductCard from "../components/ProductCard";
 import { ToastContainer, toast } from "react-toastify";
 import { MdNotifications } from "react-icons/md";
 import { FiLogOut } from "react-icons/fi";
@@ -79,6 +78,11 @@ const HomePage = () => {
     avatar: null,
     username: ""
   });
+  const [openCommentsModal, setOpenCommentsModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [commentsPage, setCommentsPage] = useState(1);
+  const [commentsError, setCommentsError] = useState("");
 
   // Fetch userId from token or local storage on component mount
   useEffect(() => {
@@ -110,10 +114,12 @@ const HomePage = () => {
           page: String(page),
         },
       });
+      // console.log("Products response:", response.data.data.);
 
-      if (response.data.success && Array.isArray(response.data.data)) {
-        const formattedProducts = response.data.data.map((pet) => ({
-          id: pet._id,
+      if (response.data.success && Array.isArray(response.data.data.id)) {
+        const formattedProducts = response.data.data.map((pet) => (
+          {
+          id: pet.id,
           name: pet.name,
           species: pet.species,
           breed: pet.breed,
@@ -122,7 +128,9 @@ const HomePage = () => {
           productImages: pet.productImages,
           description: pet.description,
           status: pet.status,
-        }));
+        }
+      ));
+        // console.log("Formatted products:", formattedProducts.id);
         setProducts(formattedProducts);
         setError("");
       } else {
@@ -149,6 +157,7 @@ const HomePage = () => {
       });
 
       if (response.data.success) {
+        // console.log(response.data.data);
         setProfile(response.data.data);
         setError("");
       } else {
@@ -163,6 +172,96 @@ const HomePage = () => {
         setError("Error fetching profile. Please try again later.");
       }
     }
+  };
+
+  const fetchComments = async (product) => {
+    try {
+      const token = getAuthToken();
+      let id = product?.id || product?.productId ;
+      if (!id) {  
+        setCommentsError("Product ID not found.");
+        return;
+      }
+      console.log("Fetching comments for productId:", id);
+      const response = await axios.get(
+        `http://[::1]:3000/api/v1/comment/${id}/product-id?limit=10&page=${commentsPage}`,
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+        }
+      );
+
+      console.log("Comments response:", response.data);
+
+      if (response.data.success) {
+        const userEmail = profile.email;
+        const userComments = response.data.data.filter(
+          comment => comment.email === userEmail
+        );
+        setComments(userComments);
+        setCommentsError("");
+      } else {
+        setCommentsError("Failed to load comments.");
+      }
+    } catch (error) {
+      if (error.response?.status === 401) {
+        setCommentsError("Unauthorized Access. Please login again.");
+        logout();
+        navigate("/");
+      } else {
+        setCommentsError("Error fetching comments. Please try again later.");
+      }
+    }
+  };
+
+  const handleProductClick = (product) => {
+    setSelectedProduct(product);
+    fetchComments(product);
+    console.log("Selected product:", product);
+    setOpenCommentsModal(true);
+  };
+
+  const ProductCard = ({ product, onClick }) => {
+    return (
+      <Card 
+        onClick={onClick}
+        sx={{ 
+          cursor: 'pointer',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          '&:hover': {
+            boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.15)',
+            transform: 'translateY(-2px)',
+            transition: 'all 0.3s ease'
+          }
+        }}
+      >
+        <Box
+          component="img"
+          height="200"
+          src={product.productImages || '/placeholder-pet.jpg'}
+          alt={product.name}
+          sx={{ objectFit: 'cover' }}
+        />
+        <CardContent>
+          <Typography gutterBottom variant="h6" component="div">
+            {product.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {product.species} • {product.breed}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Age: {product.age}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Status: {product.status}
+          </Typography>
+        </CardContent>
+      </Card>
+    );
   };
 
   const handleLogout = () => {
@@ -357,9 +456,9 @@ const HomePage = () => {
             {/* Profile Section */}
             {activeTab === "profile" && (
               <Box sx={{ maxWidth: 800, margin: "0 auto", mt: 2 }}>
-                <Grid2 container spacing={4}>
+                <Grid container spacing={4}>
                   {/* Personal Information Card */}
-                  <Grid2 item xs={12} sm={8}>
+                  <Grid item xs={12} sm={8}>
                     <Card
                       sx={{
                         boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
@@ -401,10 +500,10 @@ const HomePage = () => {
                         Save Changes
                       </Button>
                     </Card>
-                  </Grid2>
+                  </Grid>
 
                   {/* Account Information Card */}
-                  <Grid2 item xs={12} sm={4}>
+                  <Grid item xs={12} sm={4}>
                     <Card
                       sx={{
                         boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
@@ -426,8 +525,8 @@ const HomePage = () => {
                         </Typography>
                       </Box>
                     </Card>
-                  </Grid2>
-                </Grid2>
+                  </Grid>
+                </Grid>
               </Box>
             )}
 
@@ -436,13 +535,16 @@ const HomePage = () => {
               <>
                 {error && <Typography color="error" align="center" sx={{ mb: 2 }}>{error}</Typography>}
 
-                <Grid2 container spacing={4} sx={{ mt: 2 }}>
+                <Grid container spacing={4} sx={{ mt: 2 }}>
                   {products.map((product) => (
-                    <Grid2 item xs={12} sm={6} md={3} key={product.id}>
-                      <ProductCard product={product} />
-                    </Grid2>
+                    <Grid item xs={12} sm={6} md={3} key={product.id}>
+                      <ProductCard 
+                        product={product} 
+                        onClick={() => handleProductClick(product)} 
+                      />
+                    </Grid>
                   ))}
-                </Grid2>
+                </Grid>
 
                 {/* Pagination Controls */}
                 <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
@@ -615,6 +717,100 @@ const HomePage = () => {
           </DialogActions>
         </Dialog>
       </Modal>
+
+      {/* Modal for Showing Comments */}
+      <Modal
+        open={openCommentsModal}
+        onClose={() => setOpenCommentsModal(false)}
+        closeAfterTransition
+        BackdropComponent={Backdrop}
+        BackdropProps={{
+          timeout: 500,
+        }}
+      >
+        <Dialog
+          open={openCommentsModal}
+          onClose={() => setOpenCommentsModal(false)}
+          maxWidth="md"
+          fullWidth
+          sx={{
+            "& .MuiDialog-paper": {
+              borderRadius: "16px",
+              padding: "1.5rem",
+            },
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: "bold", textAlign: "center" }}>
+            Comments for {selectedProduct?.name}
+          </DialogTitle>
+          <DialogContent>
+            {commentsError && (
+              <Typography color="error" align="center" sx={{ mb: 2 }}>
+                {commentsError}
+              </Typography>
+            )}
+            
+            {comments.length === 0 ? (
+              <Typography align="center">No comments found</Typography>
+            ) : (
+              <Box sx={{ maxHeight: "400px", overflowY: "auto" }}>
+                {comments.map((comment) => (
+                  <Card key={comment.id} sx={{ p: 2, mb: 2, borderRadius: "8px" }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: "bold" }}>
+                      {comment.username || "Anonymous"}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {comment.email}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <strong>Address:</strong> {comment.address}
+                    </Typography>
+                    <Typography variant="body2">
+                      <strong>Phone:</strong> {comment.phoneNumber}
+                    </Typography>
+                    <Typography variant="body1" sx={{ mt: 1 }}>
+                      {comment.description}
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ mt: 1, color: "text.secondary" }}>
+                      Posted on: {new Date(comment.createdAt).toLocaleDateString()}
+                    </Typography>
+                  </Card>
+                ))}
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions sx={{ justifyContent: "space-between", padding: "1.5rem" }}>
+            <Box>
+              <Button 
+                disabled={commentsPage <= 1}
+                onClick={() => {
+                  setCommentsPage(prev => prev - 1);
+                  fetchComments(selectedProduct.id);
+                }}
+                sx={{ color: "#30B68F" }}
+              >
+                Previous
+              </Button>
+              <Button 
+                onClick={() => {
+                  setCommentsPage(prev => prev + 1);
+                  fetchComments(selectedProduct.id);
+                }}
+                sx={{ ml: 2, color: "#30B68F" }}
+              >
+                Next
+              </Button>
+            </Box>
+            <Button 
+              onClick={() => setOpenCommentsModal(false)}
+              sx={{ color: "#30B68F", fontWeight: "bold" }}
+            >
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Modal>
+
       <ToastContainer />
     </>
   );
