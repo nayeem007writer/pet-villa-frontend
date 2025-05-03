@@ -23,8 +23,11 @@ import {
   Grid,
   Card,
   CardContent,
-  InputAdornment
+  InputAdornment,
+  CircularProgress
 } from "@mui/material";
+import { Menu, Chip } from '@mui/material';
+import { ArrowDropDown } from '@mui/icons-material';
 import { FaUser, FaHamburger, FaSearch } from "react-icons/fa";
 import { MdPets } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
@@ -61,6 +64,10 @@ const HomePage = () => {
   const [error, setError] = useState("");
   const [browseError, setBrowseError] = useState("");
   const [page, setPage] = useState(1);
+
+  const [anchorEl, setAnchorEl] = useState(null);
+const [currentPetId, setCurrentPetId] = useState(null);
+const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   // const [openCommentModal, setOpenCommentModal] = useState(false);
   const [browsePage, setBrowsePage] = useState(1);
   const [openModal, setOpenModal] = useState(false);
@@ -161,6 +168,37 @@ const [commentData, setCommentData] = useState({
       } else {
         setError("Error fetching products. Please try again later.");
       }
+    }
+  };
+  const handleStatusClick = (event, petId) => {
+    setAnchorEl(event.currentTarget);
+    setCurrentPetId(petId);
+  };
+  
+  const handleStatusClose = () => {
+    setAnchorEl(null);
+    setCurrentPetId(null);
+  };
+  
+  const handleStatusUpdate = async (status) => {
+    if (!currentPetId) return;
+    
+    setIsUpdatingStatus(true);
+    try {
+      // Replace with your actual API endpoint
+      await axios.patch(`http://[::1]:3000/api/v1/pets/status/${currentPetId}/`, {
+        status: status
+      }, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` }
+      });
+      
+      toast.success(`Status updated to ${status}`);
+      fetchProducts(); // Refresh the pet list
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update status');
+    } finally {
+      setIsUpdatingStatus(false);
+      handleStatusClose();
     }
   };
   const handleCommentSubmit = async () => {
@@ -340,13 +378,49 @@ const [commentData, setCommentData] = useState({
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
+          position: 'relative',
+          overflow: 'hidden',
+          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
           '&:hover': {
-            boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.15)',
-            transform: 'translateY(-2px)',
-            transition: 'all 0.3s ease'
+            transform: 'translateY(-5px)',
+            boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
+            '& .pet-image': {
+              transform: 'scale(1.05)'
+            }
           }
         }}
       >
+        {/* Status Badge with Dropdown */}
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 10,
+            right: 10,
+            zIndex: 1
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Chip
+            label={product.status}
+            size="small"
+            deleteIcon={<ArrowDropDown />}
+            onDelete={(e) => handleStatusClick(e, product.id)}
+            onClick={(e) => handleStatusClick(e, product.id)}
+            color={
+              product.status === ProductStatus.AVAILABLE ? 'success' :
+              product.status === ProductStatus.ADOPTED ? 'error' : 'warning'
+            }
+            sx={{
+              fontWeight: 600,
+              cursor: 'pointer',
+              '& .MuiChip-deleteIcon': {
+                color: 'inherit'
+              }
+            }}
+          />
+        </Box>
+  
+        {/* Rest of your card content remains the same */}
         <Box
           component="img"
           height="200"
@@ -364,14 +438,10 @@ const [commentData, setCommentData] = useState({
           <Typography variant="body2" color="text.secondary">
             Age: {product.age}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Status: {product.status}
-          </Typography>
         </CardContent>
       </Card>
     );
   };
-
   // New BrowsePetCard component with different styling
 // Updated BrowsePetCard component
 const BrowsePetCard = ({ product, onClick }) => {
@@ -1171,6 +1241,80 @@ const BrowsePetCard = ({ product, onClick }) => {
       </Box>
 
       {/* Modal for Adding New Pet */}
+      
+{/* Status Dropdown Menu */}
+{/* Status Dropdown Menu */}
+<Menu
+  anchorEl={anchorEl}
+  open={Boolean(anchorEl)}
+  onClose={handleStatusClose}
+  onClick={(e) => e.stopPropagation()}
+  anchorOrigin={{
+    vertical: 'center',
+    horizontal: 'center',
+  }}
+  transformOrigin={{
+    vertical: 'center',
+    horizontal: 'center',
+  }}
+  PaperProps={{
+    style: {
+      width: '200px',
+      borderRadius: '12px',
+      boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.15)'
+    }
+  }}
+>
+  <MenuItem 
+    onClick={() => handleStatusUpdate(ProductStatus.AVAILABLE)}
+    disabled={isUpdatingStatus}
+    sx={{
+      color: '#4CAF50',
+      fontWeight: 600,
+      justifyContent: 'center',
+      py: 1.5
+    }}
+  >
+    {isUpdatingStatus && currentPetId ? (
+      <CircularProgress size={20} color="inherit" />
+    ) : (
+      ProductStatus.AVAILABLE
+    )}
+  </MenuItem>
+  <MenuItem 
+    onClick={() => handleStatusUpdate(ProductStatus.PENDING)}
+    disabled={isUpdatingStatus}
+    sx={{
+      color: '#FF9800',
+      fontWeight: 600,
+      justifyContent: 'center',
+      py: 1.5
+    }}
+  >
+    {isUpdatingStatus && currentPetId ? (
+      <CircularProgress size={20} color="inherit" />
+    ) : (
+      ProductStatus.PENDING
+    )}
+  </MenuItem>
+  <MenuItem 
+    onClick={() => handleStatusUpdate(ProductStatus.ADOPTED)}
+    disabled={isUpdatingStatus}
+    sx={{
+      color: '#F44336',
+      fontWeight: 600,
+      justifyContent: 'center',
+      py: 1.5
+    }}
+  >
+    {isUpdatingStatus && currentPetId ? (
+      <CircularProgress size={20} color="inherit" />
+    ) : (
+      ProductStatus.ADOPTED
+    )}
+  </MenuItem>
+</Menu>
+
       <Modal
         open={openModal}
         onClose={handleCloseModal}
