@@ -29,7 +29,7 @@ import {
 import { Menu, Chip } from '@mui/material';
 import { ArrowDropDown } from '@mui/icons-material';
 import { FaUser, FaHamburger, FaSearch } from "react-icons/fa";
-import { MdPets } from "react-icons/md";
+import { MdPets, MdInfo } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { logout, getAuthToken } from "../utils/auth";
 import axios from "axios";
@@ -276,33 +276,32 @@ const [commentData, setCommentData] = useState({
       }
     }
   };
-  const fetchProfile = async () => {
-    try {
-      const token = getAuthToken();
-      const response = await axios.get("http://[::1]:3000/api/v1/profile", {
-        headers: { Authorization: `Bearer ${token}` }
+const fetchProfile = async () => {
+  try {
+    const token = getAuthToken();
+    const response = await axios.get("http://[::1]:3000/api/v1/profile", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  console.log(response)
+    if (response.data.success) {
+      setProfile({
+        ...response.data.data,
+        avatar: response.data.data.avatar || 
+               response.data.data.imageUrl || 
+               null
       });
-  
-      if (response.data.success) {
-        setProfile({
-          ...response.data.data,
-          avatar: response.data.data.avatar || 
-                 response.data.data.imageUrl || 
-                 null
-        });
-        setError("");
-      }
-    } catch (error) {
-      // ... error handling
-      if (error.response?.status === 401) {
-        setError("Unauthorized Access. Please login again.");
-        logout();
-        navigate("/");
-      } else {
-        setError("Error fetching profile. Please try again later.");
-      }
+      setError("");
     }
-  };
+  } catch (error) {
+    if (error.response?.status === 401) {
+      setError("Unauthorized Access. Please login again.");
+      logout();
+      navigate("/");
+    } else {
+      setError("Error fetching profile. Please try again later.");
+    }
+  }
+};
 
 
   const fetchComments = async (product) => {
@@ -765,219 +764,352 @@ const BrowsePetCard = ({ product, onClick }) => {
 
 
 {activeTab === "profile" && (
-  <Box sx={{ maxWidth: 800, margin: "0 auto", mt: 2 }}>
+  <Box sx={{ maxWidth: 800, margin: "0 auto", mt: 4 }}>
     <Grid container spacing={4}>
-      {/* Personal Information Card - Updated with Avatar */}
-      <Grid item xs={12} sm={8}>
-        <Card
-          sx={{
-            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-            borderRadius: "8px",
-            padding: "2rem",
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Box sx={{
+      {/* Personal Information Card */}
+      <Grid item xs={12} md={8}>
+        <Card sx={{ 
+          boxShadow: 3,
+          borderRadius: 2,
+          p: 4,
+          backgroundColor: 'background.paper'
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            mb: 4,
+            flexDirection: { xs: 'column', sm: 'row' },
+            textAlign: { xs: 'center', sm: 'left' }
+          }}>
+            {/* Avatar Container */}
+            <Box sx={{ 
               position: 'relative',
-              width: 80,
-              height: 80,
-              borderRadius: '50%',
-              overflow: 'hidden',
-              mr: 3,
-              backgroundColor: '#f5f5f5'
+              mr: { sm: 4 },
+              mb: { xs: 2, sm: 0 }
             }}>
-              {profile.avatar ? (
-                <img 
-                  src={profile.avatar} 
-                  alt="Profile" 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <Box sx={{
-                  width: '100%',
-                  height: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: '#e0e0e0'
-                }}>
-                  <FaUser size={36} color="#777" />
-                </Box>
-              )}
+              <Box sx={{
+                width: 120,
+                height: 120,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: '3px solid',
+                borderColor: '#30B68F', // Using the specific color here
+                backgroundColor: 'grey.100',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {profile.avatar ? (
+                  <img 
+                    src={
+                      profile.avatar.startsWith('http') ? 
+                      `${profile.avatar}?${Date.now()}` : 
+                      `http://[::1]:3000/${profile.avatar}?${Date.now()}`
+                    }
+                    alt="Profile"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = '/default-avatar.jpg';
+                    }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+                ) : (
+                  <FaUser size={48} color="#757575" />
+                )}
+              </Box>
+              
+              {/* Avatar Upload Button */}
+              <input
+                accept="image/*"
+                style={{ display: 'none' }}
+                id="avatar-upload"
+                type="file"
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    try {
+                      const token = getAuthToken();
+                      const formData = new FormData();
+                      formData.append('productImages', file);
+                      
+                      const response = await axios.patch(
+                        'http://[::1]:3000/api/v1/users/avatar',
+                        formData,
+                        {
+                          headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'multipart/form-data'
+                          }
+                        }
+                      );
 
-
-<input
-  accept="image/*"
-  style={{ display: 'none' }}
-  id="avatar-upload"
-  type="file"
-  onChange={async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      try {
-        const token = getAuthToken();
-        const formData = new FormData();
-        formData.append('productImages', file);
-        
-        const response = await axios.patch(
-          'http://[::1]:3000/api/v1/users/avatar',
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'multipart/form-data'
-            }
-          }
-        );
-
-        if (response.data.success) {
-          // Update local state immediately with the new image
-          const avatarUrl = response.data.data.avatarUrl || 
-                          response.data.data.imageUrl ||
-                          URL.createObjectURL(file);
-          
-          setProfile(prev => ({
-            ...prev,
-            avatar: avatarUrl
-          }));
-          
-          // Optional: force profile refetch
-          await fetchProfile();
-          
-          toast.success('Avatar updated successfully!');
-        }
-      } catch (error) {
-        toast.error('Failed to update avatar');
-        console.error('Upload error:', error);
-      }
-    }
-  }}
-/>
-
-
-<Box sx={{
-  position: 'relative',
-  width: 80,
-  height: 80,
-  borderRadius: '50%',
-  overflow: 'hidden',
-  mr: 3,
-  backgroundColor: '#f5f5f5'
-}}>
-  {profile.avatar ? (
-    <img 
-      src={
-        profile.avatar.startsWith('http') ? 
-        `${profile.avatar}?${Date.now()}` : 
-        `http://[::1]:3000/${profile.avatar}?${Date.now()}`
-      }
-      alt="Profile"
-      onError={(e) => {
-        e.target.onerror = null;
-        e.target.src = '/default-avatar.jpg';
-      }}
-      style={{
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover'
-      }}
-    />
-  ) : (
-    <Box sx={{
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#e0e0e0'
-    }}>
-      <FaUser size={36} color="#777" />
-    </Box>
-  )}
-  {/* Upload button remains the same */}
-</Box>
+                      if (response.data.success) {
+                        toast.success('Avatar updated successfully!');
+                        await fetchProfile();
+                      }
+                    } catch (error) {
+                      toast.error(error.response?.data?.message || 'Failed to update avatar');
+                    }
+                  }
+                }}
+              />
               <label htmlFor="avatar-upload">
                 <IconButton 
                   component="span"
                   sx={{
                     position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    backgroundColor: '#30B68F',
+                    bottom: 8,
+                    right: 8,
+                    backgroundColor: '#30B68F', // Using the specific color here
                     color: 'white',
                     '&:hover': {
-                      backgroundColor: '#25876E'
+                      backgroundColor: '#25876E' // Darker shade for hover
                     }
                   }}
                 >
-                  <CameraAltIcon fontSize="small" />
+                  <CameraAltIcon />
                 </IconButton>
               </label>
             </Box>
+            
+            {/* User Info */}
             <Box>
-              <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+              <Typography variant="h5" sx={{ 
+                fontWeight: 600,
+                color: '#30B68F', // Using the specific color here
+                mb: 0.5
+              }}>
                 {profile.firstName} {profile.lastName}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="subtitle1" sx={{ 
+                color: 'text.secondary',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1
+              }}>
+                <FaUser size={14} />
                 @{profile.username}
               </Typography>
             </Box>
           </Box>
 
-          {/* Rest of the personal information remains the same */}
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1" sx={{ color: "#555" }}>
-              <strong>Username:</strong> {profile.username}
-            </Typography>
+          {/* Profile Details */}
+          <Box sx={{ 
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+            gap: 3
+          }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ 
+                color: 'text.secondary',
+                mb: 0.5,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Username
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: '#30B68F', // Using the specific color here
+                fontWeight: 500,
+                fontSize: '1.1rem'
+              }}>
+                {profile.username}
+              </Typography>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" sx={{ 
+                color: 'text.secondary',
+                mb: 0.5,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Email
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: '#30B68F', // Using the specific color here
+                fontWeight: 500,
+                fontSize: '1.1rem',
+                wordBreak: 'break-word'
+              }}>
+                {profile.email}
+              </Typography>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" sx={{ 
+                color: 'text.secondary',
+                mb: 0.5,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                First Name
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: '#30B68F', // Using the specific color here
+                fontWeight: 600,
+                fontSize: '1.1rem'
+              }}>
+                {profile.firstName}
+              </Typography>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" sx={{ 
+                color: 'text.secondary',
+                mb: 0.5,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Last Name
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: '#30B68F', // Using the specific color here
+                fontWeight: 600,
+                fontSize: '1.1rem'
+              }}>
+                {profile.lastName}
+              </Typography>
+            </Box>
+            
+            <Box>
+              <Typography variant="subtitle2" sx={{ 
+                color: 'text.secondary',
+                mb: 0.5,
+                fontSize: '0.75rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Phone Number
+              </Typography>
+              <Typography variant="body1" sx={{ 
+                color: '#30B68F', // Using the specific color here
+                fontWeight: 500,
+                fontSize: '1.1rem'
+              }}>
+                {profile.phoneNumber || 'Not provided'}
+              </Typography>
+            </Box>
           </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1" sx={{ color: "#555" }}>
-              <strong>Email:</strong> {profile.email}
-            </Typography>
+
+          {/* Save Button */}
+          <Box sx={{ mt: 4, textAlign: 'right' }}>
+            <Button
+              variant="contained"
+              size="large"
+              sx={{
+                px: 4,
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: 2,
+                backgroundColor: '#30B68F', // Using the specific color here
+                color: 'white', // White text
+                '&:hover': {
+                  backgroundColor: '#25876E' // Darker shade for hover
+                }
+              }}
+            >
+              Save Changes
+            </Button>
           </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1" sx={{ color: "#555" }}>
-              <strong>Full Name:</strong> {profile.firstName} {profile.lastName}
-            </Typography>
-          </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1" sx={{ color: "#555" }}>
-              <strong>Phone Number:</strong> {profile.phoneNumber}
-            </Typography>
-          </Box>
-          <Button
-            variant="contained"
-            sx={{
-              backgroundColor: "#30B68F",
-              "&:hover": { backgroundColor: "#25876E" },
-              mt: 2,
-            }}
-          >
-            Save Changes
-          </Button>
         </Card>
       </Grid>
 
-      {/* Account Information Card - remains unchanged */}
-      <Grid item xs={12} sm={4}>
-        <Card
-          sx={{
-            boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.1)",
-            borderRadius: "8px",
-            padding: "2rem",
-          }}
-        >
-          <Typography variant="h6" sx={{ fontWeight: "bold", mb: 3 }}>
+      {/* Account Information Card */}
+      <Grid item xs={12} md={4}>
+        <Card sx={{ 
+          boxShadow: 3,
+          borderRadius: 2,
+          p: 3,
+          height: '100%',
+          backgroundColor: 'background.paper'
+        }}>
+          <Typography variant="h6" sx={{ 
+            fontWeight: 600,
+            mb: 3,
+            color: '#30B68F', // Using the specific color here
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <MdInfo size={20} />
             Account Information
           </Typography>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1" sx={{ color: "#555" }}>
-              <strong>User ID:</strong> {userId}
+          
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" sx={{ 
+              color: 'text.secondary',
+              mb: 0.5,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              User ID
+            </Typography>
+            <Typography variant="body1" sx={{ 
+              color: '#30B68F', // Using the specific color here
+              fontWeight: 500,
+              fontSize: '0.9rem',
+              wordBreak: 'break-all'
+            }}>
+              {userId}
             </Typography>
           </Box>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body1" sx={{ color: "#555" }}>
-              <strong>Account Status:</strong> ● Active
+          
+          <Box>
+            <Typography variant="subtitle2" sx={{ 
+              color: 'text.secondary',
+              mb: 0.5,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Account Status
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: '#30B68F' // Using the specific color here
+              }} />
+              <Typography variant="body1" sx={{ 
+                color: '#30B68F', // Using the specific color here
+                fontWeight: 500,
+                fontSize: '1.1rem'
+              }}>
+                {profile.isActive ? 'Active' : 'Inactive'}
+              </Typography>
+            </Box>
+          </Box>
+          
+          <Box sx={{ mt: 4, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+            <Typography variant="subtitle2" sx={{ 
+              color: 'text.secondary',
+              mb: 1,
+              fontSize: '0.75rem',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px'
+            }}>
+              Member Since
+            </Typography>
+            <Typography variant="body2" sx={{ 
+              color: '#30B68F', // Using the specific color here
+              fontWeight: 500
+            }}>
+              {new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              })}
             </Typography>
           </Box>
         </Card>
