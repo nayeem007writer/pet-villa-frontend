@@ -28,7 +28,8 @@ import {
 } from "@mui/material";
 import { Menu, Chip } from '@mui/material';
 import { ArrowDropDown } from '@mui/icons-material';
-import { FaUser, FaHamburger, FaSearch } from "react-icons/fa";
+import { FaUser, FaHamburger, FaSearch, } from "react-icons/fa";
+import { FaWallet, FaShoppingBasket } from "react-icons/fa";
 import { MdPets, MdInfo } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { logout, getAuthToken } from "../utils/auth";
@@ -248,34 +249,53 @@ const [commentData, setCommentData] = useState({
     }
   };
 
-  const fetchBrowsePets = async () => {
-    try {
-      const token = getAuthToken();
-      const response = await axios.get("http://[::1]:3000/api/v1/pets/customer", {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        params: {
-          limit: "10",
-          page: String(browsePage),
+const fetchBrowsePets = async () => {
+  try {
+    const token = getAuthToken();
+    let params = {
+      limit: "10",
+      page: String(browsePage),
+    };
 
-        },
-      });
-
-      if (response.data.success && Array.isArray(response.data.data)) {
-        setBrowsePets(response.data.data);
-        setBrowseError("");
-      } else {
-        setBrowseError("Failed to load pets.");
-      }
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setBrowseError("Unauthorized Access. Please login again.");
-        logout();
-        navigate("/");
-      } else {
-        setBrowseError("Error fetching pets. Please try again later.");
-      }
+    // Only apply one filter at a time
+    if (searchTerm) {
+      params.searchTerm = searchTerm;
+    } else if (filters.species) {
+      // Pass species value as searchTerm parameter
+      params.searchTerm = filters.species;
+    } else if (filters.age) {
+      params.searchTerm = filters.age;
     }
-  };
+
+    console.log("API Request Params:", params); // Debug log
+
+    const response = await axios.get("http://[::1]:3000/api/v1/pets/customer", {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json" 
+      },
+      params: params
+    });
+
+    console.log("API Response:", response.data); // Debug log
+
+    if (response.data.success) {
+      setBrowsePets(response.data.data || []);
+      setBrowseError("");
+    } else {
+      setBrowseError(response.data.message || "Failed to load pets.");
+    }
+  } catch (error) {
+    console.error("Fetch pets error:", error);
+    if (error.response?.status === 401) {
+      setBrowseError("Unauthorized Access. Please login again.");
+      logout();
+      navigate("/");
+    } else {
+      setBrowseError(error.response?.data?.message || "Error fetching pets. Please try again later.");
+    }
+  }
+};
 const fetchProfile = async () => {
   try {
     const token = getAuthToken();
@@ -304,44 +324,95 @@ const fetchProfile = async () => {
 };
 
 
-  const fetchComments = async (product) => {
-    try {
-      const token = getAuthToken();
-      let id = product?.id || product?.productId;
-      if (!id) {  
-        setCommentsError("Product ID not found.");
-        return;
-      }
-      const response = await axios.get(
-        `http://[::1]:3000/api/v1/comment/${id}/product-id?limit=10&page=${commentsPage}`,
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-        }
-      );
+  // const fetchComments = async (product) => {
+  //   try {
+  //     const token = getAuthToken();
+  //     let id = product?.id || product?.productId;
+  //     if (!id) {  
+  //       setCommentsError("Product ID not found.");
+  //       return;
+  //     }
+  //     const response = await axios.get(
+  //       `http://[::1]:3000/api/v1/comment/${id}/product-id?limit=10&page=${commentsPage}`,
+  //       {
+  //         headers: { 
+  //           Authorization: `Bearer ${token}`,
+  //           "Content-Type": "application/json"
+  //         },
+  //       }
+  //     );
 
-      if (response.data.success) {
-        const userEmail = profile.email;
-        const userComments = response.data.data.filter(
-          comment => comment.email === userEmail
-        );
-        setComments(userComments);
-        setCommentsError("");
-      } else {
-        setCommentsError("Failed to load comments.");
-      }
-    } catch (error) {
-      if (error.response?.status === 401) {
-        setCommentsError("Unauthorized Access. Please login again.");
-        logout();
-        navigate("/");
-      } else {
-        setCommentsError("Error fetching comments. Please try again later.");
-      }
+  //     if (response.data.success) {
+  //       const userEmail = profile.email;
+  //       const userComments = response.data.data.filter(
+  //         comment => comment.email === userEmail
+  //       );
+  //       setComments(userComments);
+  //       setCommentsError("");
+  //     } else {
+  //       setCommentsError("Failed to load comments.");
+  //     }
+  //   } catch (error) {
+  //     if (error.response?.status === 401) {
+  //       setCommentsError("Unauthorized Access. Please login again.");
+  //       logout();
+  //       navigate("/");
+  //     } else {
+  //       setCommentsError("Error fetching comments. Please try again later.");
+  //     }
+  //   }
+  // };
+  const fetchComments = async (product) => {
+  try {
+    const token = getAuthToken();
+    
+    // First, ensure we have a product object
+    if (!product) {
+      setCommentsError("No product selected.");
+      return;
     }
-  };
+
+    // Get the ID - check both possible properties
+    const productId = product.id || product._id;
+    
+    if (!productId) {
+      setCommentsError("Product ID not found.");
+      return;
+    }
+
+    const response = await axios.get(
+      `http://[::1]:3000/api/v1/comment/${productId}/product-id`,
+      {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        params: {
+          limit: 10,
+          page: commentsPage
+        },
+        searchTerm
+      }
+    );
+
+    if (response.data.success) {
+      // Don't filter by email here - show all comments
+      setComments(response.data.data || []);
+      setCommentsError("");
+    } else {
+      setCommentsError(response.data.message || "Failed to load comments.");
+    }
+  } catch (error) {
+    console.error("Error fetching comments:", error);
+    if (error.response?.status === 401) {
+      setCommentsError("Unauthorized Access. Please login again.");
+      logout();
+      navigate("/");
+    } else {
+      setCommentsError(error.response?.data?.message || "Error fetching comments. Please try again later.");
+    }
+  }
+};
 
   const handleProductClick = (product) => {
     setSelectedProduct(product);
@@ -368,79 +439,200 @@ const fetchProfile = async () => {
   };
 
   // Original ProductCard component
-  const ProductCard = ({ product, onClick }) => {
-    return (
-      <Card 
-        onClick={onClick}
-        sx={{ 
-          cursor: 'pointer',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          overflow: 'hidden',
-          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-          '&:hover': {
-            transform: 'translateY(-5px)',
-            boxShadow: '0 10px 20px rgba(0,0,0,0.1)',
-            '& .pet-image': {
-              transform: 'scale(1.05)'
-            }
+// Updated ProductCard component with enhanced styling
+const ProductCard = ({ product, onClick }) => {
+  return (
+    <Card 
+      onClick={onClick}
+      sx={{ 
+        cursor: 'pointer',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'all 0.3s ease',
+        border: '1px solid #e0e0e0',
+        '&:hover': {
+          transform: 'translateY(-5px)',
+          boxShadow: '0 10px 20px rgba(48, 182, 143, 0.2)',
+          borderColor: '#30B68F',
+          '& .pet-image': {
+            transform: 'scale(1.05)'
+          },
+          '& .pet-name': {
+            color: '#30B68F'
           }
+        }
+      }}
+    >
+      {/* Status Badge with Dropdown */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 10,
+          right: 10,
+          zIndex: 1
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Chip
+          label={product.status}
+          size="small"
+          deleteIcon={<ArrowDropDown />}
+          onDelete={(e) => handleStatusClick(e, product.id)}
+          onClick={(e) => handleStatusClick(e, product.id)}
+          color={
+            product.status === ProductStatus.AVAILABLE ? 'success' :
+            product.status === ProductStatus.ADOPTED ? 'error' : 'warning'
+          }
+          sx={{
+            fontWeight: 700,
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+            '& .MuiChip-deleteIcon': {
+              color: 'inherit'
+            }
+          }}
+        />
+      </Box>
+
+      {/* Pet Image - Updated with fixed height container */}
+      <Box
+        sx={{
+          width: '100%',
+          height: '200px', // Fixed height
+          overflow: 'hidden',
+          position: 'relative'
         }}
       >
-        {/* Status Badge with Dropdown */}
         <Box
-          sx={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            zIndex: 1
+          component="img"
+          className="pet-image"
+          src={product.productImages || '/placeholder-pet.jpg'}
+          alt={product.name}
+          sx={{ 
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            transition: 'transform 0.5s ease',
           }}
-          onClick={(e) => e.stopPropagation()}
+        />
+      </Box>
+      
+      {/* Card Content with enhanced styling */}
+      <CardContent sx={{ flexGrow: 1 }}>
+        <Typography 
+          gutterBottom 
+          variant="h6" 
+          component="div"
+          className="pet-name"
+          sx={{
+            fontWeight: 700,
+            color: '#333',
+            transition: 'color 0.3s ease',
+            mb: 1.5,
+            fontSize: '1.1rem',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden'
+          }}
         >
+          {product.name}
+        </Typography>
+        
+        <Box sx={{ mb: 1 }}>
+          <Typography 
+            variant="body2" 
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              color: '#555',
+              mb: 0.5,
+              fontSize: '0.9rem'
+            }}
+          >
+            <Box 
+              component="span" 
+              sx={{ 
+                fontWeight: 600,
+                color: '#30B68F',
+                mr: 0.5
+              }}
+            >
+              Species:
+            </Box>
+            {product.species}
+          </Typography>
+          
+          <Typography 
+            variant="body2" 
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              color: '#555',
+              mb: 0.5,
+              fontSize: '0.9rem'
+            }}
+          >
+            <Box 
+              component="span" 
+              sx={{ 
+                fontWeight: 600,
+                color: '#30B68F',
+                mr: 0.5
+              }}
+            >
+              Breed:
+            </Box>
+            {product.breed}
+          </Typography>
+        </Box>
+        
+        <Box sx={{ 
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mt: 2,
+          pt: 1,
+          borderTop: '1px dashed #e0e0e0'
+        }}>
+          <Typography 
+            variant="body2" 
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              color: '#555',
+              fontSize: '0.9rem'
+            }}
+          >
+            <Box 
+              component="span" 
+              sx={{ 
+                fontWeight: 600,
+                color: '#30B68F',
+                mr: 0.5
+              }}
+            >
+              Age:
+            </Box>
+            {product.age}
+          </Typography>
+          
           <Chip
-            label={product.status}
+            label={product.gender}
             size="small"
-            deleteIcon={<ArrowDropDown />}
-            onDelete={(e) => handleStatusClick(e, product.id)}
-            onClick={(e) => handleStatusClick(e, product.id)}
-            color={
-              product.status === ProductStatus.AVAILABLE ? 'success' :
-              product.status === ProductStatus.ADOPTED ? 'error' : 'warning'
-            }
             sx={{
               fontWeight: 600,
-              cursor: 'pointer',
-              '& .MuiChip-deleteIcon': {
-                color: 'inherit'
-              }
+              backgroundColor: product.gender === 'male' ? 'rgba(66, 165, 245, 0.1)' : 'rgba(233, 30, 99, 0.1)',
+              color: product.gender === 'male' ? '#42a5f5' : '#e91e63'
             }}
           />
         </Box>
-  
-        {/* Rest of your card content remains the same */}
-        <Box
-          component="img"
-          height="200"
-          src={product.productImages || '/placeholder-pet.jpg'}
-          alt={product.name}
-          sx={{ objectFit: 'cover' }}
-        />
-        <CardContent>
-          <Typography gutterBottom variant="h6" component="div">
-            {product.name}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {product.species} • {product.breed}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Age: {product.age}
-          </Typography>
-        </CardContent>
-      </Card>
-    );
-  };
+      </CardContent>
+    </Card>
+  );
+};
   // New BrowsePetCard component with different styling
 // Updated BrowsePetCard component
 const BrowsePetCard = ({ product, onClick }) => {
@@ -452,6 +644,7 @@ const BrowsePetCard = ({ product, onClick }) => {
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
+        width: '100%',
         overflow: 'hidden',
         transition: 'transform 0.3s ease, box-shadow 0.3s ease',
         '&:hover': {
@@ -677,43 +870,52 @@ const BrowsePetCard = ({ product, onClick }) => {
           <Typography variant="h5" sx={{ color: "white", fontWeight: "bold", textAlign: "center", mb: 3 }}>
             Dashboard
           </Typography>
-          {["profile", "products", "food", "browsePet"].map((tab) => (
-            <Button
-              key={tab}
-              fullWidth
-              variant={activeTab === tab ? "contained" : "outlined"}
-              sx={{
-                mb: 2,
-                backgroundColor: activeTab === tab ? "white" : "transparent",
-                color: activeTab === tab ? "#30B68F" : "white",
-                borderColor: "white",
-                fontWeight: "bold",
-                borderRadius: "8px",
-                padding: "0.8rem",
-                transition: "all 0.3s ease-in-out",
-                boxShadow: activeTab === tab ? "0px 4px 8px rgba(0, 0, 0, 0.2)" : "none",
-                "&:hover": {
-                  backgroundColor: "rgba(255, 255, 255, 0.2)",
-                  boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
-                  transform: "scale(1.05)",
-                },
-              }}
-              onClick={() => {
-                setActiveTab(tab);
-                setPage(1);
-              }}
-            >
-              {tab === "profile" && <FaUser style={{ marginRight: "10px" }} />}
-              {tab === "products" && <MdPets style={{ marginRight: "10px" }} />}
-              {tab === "food" && <FaHamburger style={{ marginRight: "10px" }} />}
-              {tab === "browsePet" && <FaSearch style={{ marginRight: "10px" }} />}
-              {tab === "products"
-                ? "My Pet Listings"
-                : tab === "browsePet"
-                ? "Browse Pets"
-                : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Button>
-          ))}
+{["profile", "products",  "browsePet", "wallet", "purchases"].map((tab) => (
+  <Button
+    key={tab}
+    fullWidth
+    variant={activeTab === tab ? "contained" : "outlined"}
+    sx={{
+      mb: 2,
+      backgroundColor: activeTab === tab ? "white" : "transparent",
+      color: activeTab === tab ? "#30B68F" : "white",
+      borderColor: "white",
+      fontWeight: "bold",
+      borderRadius: "8px",
+      padding: "0.8rem",
+      transition: "all 0.3s ease-in-out",
+      boxShadow: activeTab === tab ? "0px 4px 8px rgba(0, 0, 0, 0.2)" : "none",
+      "&:hover": {
+        backgroundColor: "rgba(255, 255, 255, 0.2)",
+        boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
+        transform: "scale(1.05)",
+      },
+    }}
+    onClick={() => {
+      setActiveTab(tab);
+      setPage(1);
+    }}
+  >
+    {tab === "profile" && <FaUser style={{ marginRight: "10px" }} />}
+    {tab === "products" && <MdPets style={{ marginRight: "10px" }} />}
+    {/* {tab === "food" && <FaHamburger style={{ marginRight: "10px" }} />} */}
+    {tab === "browsePet" && <FaSearch style={{ marginRight: "10px" }} />}
+    {tab === "wallet" && <FaWallet style={{ marginRight: "10px" }} />}
+    {tab === "purchases" && <FaShoppingBasket style={{ marginRight: "10px" }} />}
+    
+    {tab === "products"
+      ? "My Pet Listings"
+      : tab === "browsePet"
+      ? "Browse Pets"
+      // : tab === "food"
+      // ? "Food Listings"
+      : tab === "wallet"
+      ? "Wallet"
+      : tab === "purchases"
+      ? "Purchase Items"
+      : tab.charAt(0).toUpperCase() + tab.slice(1)}
+  </Button>
+))}
         </Box>
 
         {/* Main Content */}
@@ -1156,7 +1358,7 @@ const BrowsePetCard = ({ product, onClick }) => {
             )}
 
             {/* Browse Pets Tab - New Interactive Section */}
-            {activeTab === "browsePet" && (
+{activeTab === "browsePet" && (
   <Box sx={{ mt: 3 }}>
     {/* Search and Filter Section */}
     <Box sx={{ 
@@ -1173,9 +1375,16 @@ const BrowsePetCard = ({ product, onClick }) => {
       <TextField
         fullWidth
         variant="outlined"
-        placeholder="Search pets by name, breed..."
+        placeholder="Search pets by name..."
         value={searchTerm}
-        onChange={handleSearch}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          // Reset other filters when searching by name
+          setFilters({
+            species: '',
+            age: ''
+          });
+        }}
         sx={{
           '& .MuiOutlinedInput-root': {
             borderRadius: '8px',
@@ -1206,45 +1415,83 @@ const BrowsePetCard = ({ product, onClick }) => {
           <Select
             name="species"
             value={filters.species}
-            onChange={handleFilterChange}
+            onChange={(e) => {
+              setFilters({
+                species: e.target.value,
+                age: ''
+              });
+              setSearchTerm(''); // Clear name search when filtering by species
+            }}
             label="Species"
           >
             <MenuItem value="">All</MenuItem>
-            {Object.values(PetSpecies).map((species) => (
-              <MenuItem key={species} value={species}>{species}</MenuItem>
-            ))}
+            <MenuItem value="Dog">Dog</MenuItem>
+            <MenuItem value="Cat">Cat</MenuItem>
+            <MenuItem value="Bird">Bird</MenuItem>
+            <MenuItem value="Other">Other</MenuItem>
           </Select>
         </FormControl>
 
-        <FormControl size="small">
-          <InputLabel>Gender</InputLabel>
-          <Select
-            name="gender"
-            value={filters.gender}
-            onChange={handleFilterChange}
-            label="Gender"
-          >
-            <MenuItem value="">All</MenuItem>
-            {Object.values(PetGender).map((gender) => (
-              <MenuItem key={gender} value={gender}>{gender}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <TextField
+          size="small"
+          label="Age"
+          name="age"
+          type="number"
+          value={filters.age}
+          onChange={(e) => {
+            // Ensure only positive numbers are entered
+            const value = e.target.value;
+            if (value === '' || (Number(value) > 0 && Number(value) < 100)) {
+              setFilters({
+                age: value,
+                species: ''
+              });
+              setSearchTerm(''); // Clear name search when filtering by age
+            }
+          }}
+          InputProps={{
+            inputProps: { 
+              min: 1,
+              max: 99
+            }
+          }}
+          sx={{ width: 120 }}
+        />
 
-        <FormControl size="small">
-          <InputLabel>Status</InputLabel>
-          <Select
-            name="status"
-            value={filters.status}
-            onChange={handleFilterChange}
-            label="Status"
-          >
-            <MenuItem value="">All</MenuItem>
-            {Object.values(ProductStatus).map((status) => (
-              <MenuItem key={status} value={status}>{status}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Button 
+          variant="contained"
+          onClick={handleSearchSubmit}
+          sx={{
+            backgroundColor: '#30B68F',
+            color: 'white',
+            '&:hover': {
+              backgroundColor: '#25876E'
+            }
+          }}
+        >
+          Apply Filters
+        </Button>
+
+        <Button 
+          variant="outlined"
+          onClick={() => {
+            setSearchTerm('');
+            setFilters({
+              species: '',
+              age: ''
+            });
+            fetchBrowsePets();
+          }}
+          sx={{
+            color: '#30B68F',
+            borderColor: '#30B68F',
+            '&:hover': {
+              backgroundColor: 'rgba(48, 182, 143, 0.08)'
+            }
+          }}
+        >
+          Clear All
+        </Button>
       </Box>
     </Box>
 
@@ -1276,7 +1523,7 @@ const BrowsePetCard = ({ product, onClick }) => {
         height: '300px',
         backgroundColor: 'white',
         borderRadius: 2,
-        boxShadow: '0px 2px 10px rgba(0, 0, 0, 0.05)'
+        boxShadow: '0px 2px 10px rgba(0, 0, 0, 2)'
       }}>
         <Typography variant="h6" color="textSecondary" sx={{ mb: 2 }}>
           No pets found matching your criteria
@@ -1287,9 +1534,9 @@ const BrowsePetCard = ({ product, onClick }) => {
             setSearchTerm('');
             setFilters({
               species: '',
-              gender: '',
-              status: ''
+              age: ''
             });
+            fetchBrowsePets();
           }}
           sx={{
             color: '#30B68F',

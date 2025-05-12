@@ -87,7 +87,7 @@ const Navbar = () => {
               },
             }}
           >
-            Login
+            {/* Login */}
           </Button>
         )}
       </Toolbar>
